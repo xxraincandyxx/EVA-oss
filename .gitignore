@@ -1,0 +1,60 @@
+# OS and editor state
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*sublime-workspace
+
+# Local configuration and credentials
+.env
+.env.*
+*.local
+ssl/*.crt
+ssl/*.key
+ssl/*.pem
+
+# Python caches and environments
+.venv/
+*.egg-info/
+*.py[cod]
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+.coverage
+
+# Native and frontend builds
+build/
+compile_commands.json
+dist/
+node_modules/
+*.dll
+*.dylib
+*.o
+*.pyd
+*.so
+
+# Runtime state
+*.db
+*.log
+src/backend/web/static/captures/
+
+# Models, datasets, and experiment output
+*.pt
+src/cache/
+src/checkpoints/
+src/datasets/
+src/weights/
+src/backend/vision/exp*/
+src/backend/vision/face/
+src/backend/vision/runs/
+src/backend/dl_utils/fatuus/cache/
+tb_logs/
+wandb_logs/
+
+# Local scratch space
+.cache/
+bkup/
+demo/
+lab/
+temp/

@@ -1,0 +1,19 @@
+data:
+  root: ~/Datasets/NEU-CLS
+  train: train/images
+  val: val/images
+  nc: 6
+  names: ["crazing", "inclusion", "patches", "pitted_surface", "rolled-in_scale", "scratches"]
+  test_image: ../../tests/scratches_5.jpg
+
+train:
+  epochs: 10
+  batch_size: 64
+  image_size: 200
+  learning_rate: 0.001
+  weight_decay: 0.0005
+  device: auto
+
+model:
+  architecture: yolo11m.yaml
+  weights: yolo11m.pt

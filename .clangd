@@ -1,0 +1,9 @@
+CompileFlags:
+  Add: [-std=c++17]
+Diagnostics:
+  ClangTidy:
+    Add: [bugprone-*, performance-*, readability-*]
+  UnusedIncludes: Strict
+Index:
+  Background: Build
+  StandardLibrary: Yes

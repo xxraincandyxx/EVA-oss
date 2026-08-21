@@ -1,0 +1,194 @@
+/* schedule.css */
+
+.cache-container {
+  height: 400px; /* Fixed height */
+  overflow-y: auto; /* Enable vertical scrollbar */
+  background-color: var(--grey);
+  border-radius: 10px;
+  padding: 1rem;
+  color: var(--dark);
+}
+
+.empty-schedule {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100%;
+  color: var(--dark-grey);
+}
+
+.scheduled-item {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.75rem;
+  background-color: var(--light);
+  border-radius: 8px;
+  margin-bottom: 0.5rem;
+  border-left: 5px solid var(--primary);
+}
+
+.scheduled-item .index {
+  font-weight: bold;
+  background-color: var(--light-primary);
+  color: var(--primary);
+  border-radius: 50%;
+  width: 30px;
+  height: 30px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.scheduled-item .name {
+  font-weight: 500;
+  flex-grow: 1;
+}
+
+.scheduled-item .details {
+  font-size: 0.85rem;
+  color: var(--dark-grey);
+}
+
+.schedule-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+.schedule-actions .action-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 1rem;
+  border-radius: 10px;
+  border: none;
+  font-weight: 600;
+  font-size: 1rem;
+  cursor: pointer;
+  color: var(--light);
+  transition: all 0.2s ease;
+}
+
+.schedule-actions .action-btn .bx {
+  font-size: 1.5rem;
+}
+
+.schedule-actions .action-btn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  filter: brightness(1.1);
+}
+
+.action-btn:disabled {
+  background-color: var(--grey) !important;
+  color: var(--dark-grey) !important;
+  cursor: not-allowed;
+  filter: none;
+  transform: none;
+}
+
+.action-btn.clear {
+  background-color: var(--warning);
+  color: var(--dark);
+}
+.action-btn.pop {
+  background-color: var(--dark-grey);
+}
+.action-btn.emit {
+  background-color: var(--success);
+}
+.action-btn.load {
+  background-color: var(--primary);
+}
+.action-btn.save {
+  background-color: var(--primary);
+}
+.action-btn.eliminate {
+  background-color: var(--danger);
+}
+
+/* REPEAT SECTION */
+.schedule-repeat-action {
+  grid-column: 1 / -1; /* Span both columns */
+  display: flex;
+  align-items: stretch; /* Make items equal height */
+  gap: 1rem;
+  background-color: var(--grey);
+  padding: 1rem;
+  border-radius: 10px;
+  margin-top: 1rem;
+}
+.schedule-repeat-action .action-btn {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 1rem;
+  border-radius: 10px;
+  border: none;
+  font-weight: 600;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.schedule-repeat-action .action-btn.repeat {
+  background-color: var(--success);
+}
+.schedule-repeat-action .action-btn.stop-repeat {
+  background-color: var(--danger);
+}
+
+.repeat-interval-container {
+  flex-grow: 1;
+  position: relative;
+}
+
+.repeat-interval-container input {
+  width: 100%;
+  height: 100%; /* Stretches to match button height */
+  padding: 10px 16px;
+  border: 1px solid var(--dark-grey);
+  border-radius: 10px;
+  background: var(--light);
+  color: var(--dark);
+  font-size: 1.1rem;
+  font-weight: 500;
+  box-sizing: border-box; /* Crucial for height and padding to work together */
+  transition: all 0.2s ease;
+}
+
+.repeat-interval-container input:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px var(--light-primary);
+}
+
+.repeat-interval-container label {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--dark-grey);
+  pointer-events: none;
+  transition: all 0.2s ease;
+  background: var(--light); /* To cover the input border line */
+  padding: 0 4px;
+}
+
+/* Floating label effect when focused or has a valid value */
+.repeat-interval-container input:focus + label,
+.repeat-interval-container input:valid + label {
+  top: 0;
+  font-size: 0.8rem;
+  color: var(--primary);
+}
+
+/* --- MOBILE: Schedule Page Responsiveness --- */
+@media screen and (max-width: 576px) {
+  .schedule-actions {
+    /* Change to a single column layout on small screens */
+    grid-template-columns: 1fr;
+  }
+}
