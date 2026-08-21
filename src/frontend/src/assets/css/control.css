@@ -218,16 +218,55 @@
 
 .monitor-container {
   aspect-ratio: 16 / 9;
-  background: #000;
+  position: relative;
+  background: #171a20;
   border-radius: 10px;
   overflow: hidden;
   width: 100%;
   margin-top: 1rem;
 }
-.monitor-container img {
+.monitor-stream {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  display: block;
+}
+.monitor-stream.is-loading {
+  visibility: hidden;
+}
+.monitor-placeholder {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.65rem;
+  color: #d8dde7;
+  background-color: #171a20;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.035) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+.monitor-placeholder img {
+  width: clamp(52px, 16%, 78px);
+  aspect-ratio: 1;
+  object-fit: cover;
+  border-radius: 50%;
+  opacity: 0.48;
+  filter: grayscale(1);
+}
+.monitor-placeholder .bx {
+  position: absolute;
+  font-size: clamp(2rem, 8vw, 3.25rem);
+  color: #f1f4f8;
+}
+.monitor-placeholder span {
+  margin-top: 0.35rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #aeb6c4;
 }
 
 .header-controls {

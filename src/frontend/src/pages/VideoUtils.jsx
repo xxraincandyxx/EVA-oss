@@ -1,11 +1,13 @@
 import React, { useEffect, useRef, useState } from 'react';
 
 import { kBackendUrl } from '../config';
+import { publicUrl } from '../publicUrl';
 
 // --- Helper Component for Robust Streaming ---
 const LiveMonitor = ({ title, endpoint, icon, style }) => {
   // Initialize with the base URL
   const [streamUrl, setStreamUrl] = useState(`${kBackendUrl}${endpoint}`);
+  const [isUnavailable, setIsUnavailable] = useState(true);
   const retryTimer = useRef(null);
 
   useEffect(
@@ -14,6 +16,7 @@ const LiveMonitor = ({ title, endpoint, icon, style }) => {
   );
 
   const handleStreamError = () => {
+    setIsUnavailable(true);
     console.log(
       `[${title}] Stream disconnected for stream url: ${streamUrl}. Retrying...`
     );
@@ -30,16 +33,23 @@ const LiveMonitor = ({ title, endpoint, icon, style }) => {
         <h3>{title}</h3>
       </div>
       <div className="monitor-container">
+        {isUnavailable && (
+          <div className="monitor-placeholder" role="status">
+            <img
+              src={publicUrl('figures/logo.png')}
+              alt=""
+              aria-hidden="true"
+            />
+            <i className={icon} aria-hidden="true"></i>
+            <span>{title} unavailable</span>
+          </div>
+        )}
         <img
           src={streamUrl}
           alt={title}
+          className={isUnavailable ? 'monitor-stream is-loading' : 'monitor-stream'}
+          onLoad={() => setIsUnavailable(false)}
           onError={handleStreamError}
-          style={{
-            width: '100%',
-            display: 'block',
-            minHeight: '200px',
-            background: '#000',
-          }}
         />
       </div>
     </>
