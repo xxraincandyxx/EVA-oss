@@ -1,8 +1,170 @@
 .plot-container-shared {
+  position: relative;
   width: 100%;
   height: 528px;
   min-height: 300px;
   margin-bottom: 1rem;
+}
+
+.arm-interaction-panel {
+  position: absolute;
+  left: 12px;
+  bottom: 12px;
+  z-index: 4;
+  width: min(310px, calc(100% - 24px));
+  padding: 10px;
+  border: 1px solid rgba(86, 98, 115, 0.25);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--light) 92%, transparent);
+  box-shadow: 0 8px 24px rgba(30, 39, 54, 0.16);
+  backdrop-filter: blur(10px);
+}
+
+.arm-mode-switch {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  padding: 3px;
+  border-radius: 6px;
+  background: var(--grey);
+}
+
+.arm-mode-switch button,
+.arm-joint-tabs button,
+.arm-interaction-actions button {
+  border: 0;
+  color: var(--dark);
+  background: transparent;
+  cursor: pointer;
+}
+
+.arm-mode-switch button {
+  min-height: 34px;
+  border-radius: 5px;
+  font-weight: 600;
+}
+
+.arm-mode-switch button .bx {
+  margin-right: 5px;
+  font-size: 1.05rem;
+}
+
+.arm-mode-switch button.active {
+  color: var(--primary);
+  background: var(--light);
+  box-shadow: 0 1px 4px rgba(30, 39, 54, 0.12);
+}
+
+.arm-target-readout {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 5px;
+  margin: 9px 0;
+}
+
+.arm-target-readout span {
+  min-width: 0;
+  padding: 6px;
+  border-radius: 5px;
+  color: var(--dark-grey);
+  background: var(--grey);
+  font-family: monospace;
+  font-size: 0.72rem;
+  white-space: nowrap;
+}
+
+.arm-target-readout b {
+  color: var(--primary);
+}
+
+.arm-joint-editor {
+  margin: 9px 0;
+}
+
+.arm-joint-tabs {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 4px;
+}
+
+.arm-joint-tabs button {
+  aspect-ratio: 1;
+  border-radius: 5px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  background: var(--grey);
+}
+
+.arm-joint-tabs button.active {
+  color: var(--light);
+  background: var(--primary);
+}
+
+.arm-joint-editor label {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 4px 10px;
+  margin-top: 8px;
+  color: var(--dark);
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.arm-joint-value {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.arm-joint-value button {
+  width: 24px;
+  height: 24px;
+  border: 0;
+  border-radius: 4px;
+  color: var(--dark);
+  background: var(--grey);
+  cursor: pointer;
+}
+
+.arm-joint-editor output {
+  color: var(--primary);
+  font-family: monospace;
+}
+
+.arm-joint-editor input {
+  grid-column: 1 / -1;
+  width: 100%;
+  accent-color: var(--primary);
+}
+
+.arm-interaction-error {
+  margin: 6px 0;
+  color: var(--danger);
+  font-size: 0.72rem;
+}
+
+.arm-interaction-actions {
+  display: grid;
+  grid-template-columns: 34px 1fr 1fr;
+  gap: 5px;
+}
+
+.arm-interaction-actions button {
+  min-height: 32px;
+  border-radius: 5px;
+  background: var(--grey);
+  font-weight: 600;
+}
+
+.arm-interaction-actions button.primary {
+  color: var(--light);
+  background: var(--success);
+}
+
+.arm-interaction-actions button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
 }
 
 .mini-panel-container {
@@ -330,5 +492,11 @@
 
   .plot-container-shared {
     height: 420px;
+  }
+
+  .arm-interaction-panel {
+    left: 8px;
+    bottom: 8px;
+    width: calc(100% - 16px);
   }
 }

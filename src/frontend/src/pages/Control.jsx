@@ -153,7 +153,7 @@ const Control = () => {
               <label htmlFor="live-sim-toggle-control"></label>
             </div>
           </div>
-          <ArmSimulation />
+          <ArmSimulation interactive />
           <div className="mini-panel-container">
             <button
               className="refresh-arm-sim-btn"

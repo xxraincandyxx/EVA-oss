@@ -183,6 +183,32 @@ def register_socket_events(relay: "EvaSocketRelay"):
     current_states = relay.eva_console.get_current_states()
     _emit_arm_sim_update([current_states, sim_states])
 
+  @socketio.on("preview_interactive_cartesian")
+  def handle_preview_interactive_cartesian(args: Dict[str, Any]):
+    """Solve a dragged pose for preview without commanding the arm."""
+    if not relay.eva_console:
+      emit("interactive_preview_error", {"message": "Robot backend is unavailable."})
+      return
+
+    try:
+      cartesian = [float(args[key]) for key in ["x", "y", "z", "a", "b", "c"]]
+      delta_thetas = relay.eva_console.inverse_kinematics(*cartesian)
+      current_thetas = relay.eva_console.get_current_thetas()
+      target_thetas = [
+        current_thetas[index] + delta_thetas[index] * relay.eva_console.RAD_TO_DEG
+        for index in range(6)
+      ]
+      emit(
+        "interactive_preview_result",
+        {"thetas": target_thetas, "cartesian": cartesian},
+      )
+    except (KeyError, TypeError, ValueError, RuntimeError) as error:
+      logger.warning(f"Interactive Cartesian preview failed: {error}")
+      emit(
+        "interactive_preview_error",
+        {"message": "The requested end-effector pose is unreachable."},
+      )
+
   @socketio.on("simulate_with_axes")
   def handle_simulate_with_axes(  # pyright: ignore[reportUnusedFunction]
     args: Dict[str, Any],

@@ -12,6 +12,8 @@ const useRobotStore = create((set, get) => ({
   isTracking: false,
   isRepeating: false,
   simulationStates: [],
+  interactivePreview: null,
+  interactiveError: '',
   socket: null,
   agentMessages: [],
   isAgentTyping: false,
@@ -38,6 +40,10 @@ const useRobotStore = create((set, get) => ({
         set({ isRepeating: data.is_repeating }),
       update_arm_sim_data: (data) =>
         set({ simulationStates: data.states_list ?? [] }),
+      interactive_preview_result: (data) =>
+        set({ interactivePreview: data, interactiveError: '' }),
+      interactive_preview_error: (data) =>
+        set({ interactiveError: data.message ?? 'Target is unreachable.' }),
       agent_response: (data) =>
         set((state) => ({
           isAgentTyping: false,
@@ -90,6 +96,9 @@ const useRobotStore = create((set, get) => ({
       console.error('Socket not connected. Cannot emit event:', event);
     }
   },
+
+  clearInteractivePreview: () =>
+    set({ interactivePreview: null, interactiveError: '' }),
 
   setLlmBackend: (backend, localUrl) => {
     const { socket } = get();
