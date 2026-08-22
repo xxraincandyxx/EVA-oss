@@ -1,5 +1,10 @@
 export const evaRobotModel = {
   id: 'eva',
+  initialPose: {
+    position: [-0.391, -0.118, 0.11275],
+    orientation: [90, 0, 0],
+  },
+  initialJointAngles: [0, 0, 0, 0, 0, 0],
   root: {
     position: [0, 0, 0],
     rotation: [-Math.PI / 2, 0, 0],

@@ -208,3 +208,22 @@ export const solvePoseIk = (model, startAngles, targetPose) => {
   }
   return best.angles;
 };
+
+export const resolveInitialState = (model) => {
+  const seed = clampJointAngles(
+    model,
+    model.initialJointAngles ?? Array(model.joints.length).fill(0)
+  );
+  if (model.initialPose) {
+    const pose = {
+      position: [...model.initialPose.position],
+      orientation: [...model.initialPose.orientation],
+    };
+    return { pose, thetas: solvePoseIk(model, seed, pose) };
+  }
+
+  return {
+    pose: sceneMatrixToRobotPose(model, forwardKinematics(model, seed).matrix),
+    thetas: seed,
+  };
+};

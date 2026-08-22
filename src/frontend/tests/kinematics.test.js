@@ -6,6 +6,7 @@ import * as THREE from 'three';
 import {
   clampJointAngles,
   forwardKinematics,
+  resolveInitialState,
   robotPoseToSceneMatrix,
   sceneMatrixToRobotPose,
   solvePoseIk,
@@ -42,6 +43,22 @@ test('EVA forward kinematics round-trips through a robot pose', () => {
   assert.ok(largestDifference < 1e-10);
 });
 
+test('model configuration controls the initial position and gesture', () => {
+  const configuredModel = {
+    ...evaRobotModel,
+    initialPose: {
+      position: [-0.36, -0.118, 0.11275],
+      orientation: [90, 10, 0],
+    },
+  };
+  const initial = resolveInitialState(configuredModel);
+  const error = poseError(configuredModel, initial.thetas, configuredModel.initialPose);
+
+  assert.deepEqual(initial.pose, configuredModel.initialPose);
+  assert.ok(error.position < 0.002, `position error was ${error.position}`);
+  assert.ok(error.orientation < 0.025, `orientation error was ${error.orientation}`);
+});
+
 test('pose IK solves position and orientation from a singular starting pose', () => {
   const zeroAngles = Array(evaRobotModel.joints.length).fill(0);
   const initial = sceneMatrixToRobotPose(
@@ -58,6 +75,7 @@ test('pose IK solves position and orientation from a singular starting pose', ()
 
 test('kinematics follows arbitrary joint counts, axes, and limits', () => {
   const planarModel = {
+    initialJointAngles: [90, 0],
     root: { position: [0, 0, 0], rotation: [0, 0, 0] },
     joints: [
       {
@@ -79,4 +97,5 @@ test('kinematics follows arbitrary joint counts, axes, and limits', () => {
   assert.deepEqual(clampJointAngles(planarModel, [120, -80]), [90, -45]);
   const pose = forwardKinematics(planarModel, [90, 0]);
   assert.ok(pose.position.distanceTo(new THREE.Vector3(0, 2, 0)) < 1e-10);
+  assert.deepEqual(resolveInitialState(planarModel).thetas, [90, 0]);
 });

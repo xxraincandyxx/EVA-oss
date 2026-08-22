@@ -1,4 +1,4 @@
-import React, { Suspense, useEffect, useRef, useState } from 'react';
+import React, { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 
 import { Canvas, useFrame } from '@react-three/fiber';
 import { Box, Grid, OrbitControls, TransformControls } from '@react-three/drei';
@@ -7,6 +7,7 @@ import * as THREE from 'three';
 import useRobotStore from '../../store/useRobotStore';
 import {
   clampJointAngles,
+  resolveInitialState,
   robotPoseToSceneMatrix,
   sceneMatrixToRobotPose,
   solvePoseIk,
@@ -288,18 +289,23 @@ const ArmSimulation = ({
     (state) => state.clearInteractivePreview
   );
 
-  const initialPose = {
-    position: status.position.slice(0, 3),
-    orientation: status.orientation.slice(0, 3),
-  };
+  const configuredInitialState = useMemo(() => resolveInitialState(model), [model]);
+  const currentInitialState = () =>
+    isOnline
+      ? {
+          pose: {
+            position: status.position.slice(0, 3),
+            orientation: status.orientation.slice(0, 3),
+          },
+          thetas: clampJointAngles(model, status.thetas),
+        }
+      : configuredInitialState;
   const [mode, setMode] = useState('target');
   const [transformMode, setTransformMode] = useState('translate');
   const [traceTarget, setTraceTargetState] = useState(true);
   const [selectedJoint, setSelectedJoint] = useState(0);
-  const [draftThetas, setDraftThetas] = useState(() =>
-    clampJointAngles(model, status.thetas)
-  );
-  const [targetPose, setTargetPose] = useState(initialPose);
+  const [draftThetas, setDraftThetas] = useState(configuredInitialState.thetas);
+  const [targetPose, setTargetPose] = useState(configuredInitialState.pose);
   const [resetToken, setResetToken] = useState(0);
   const endEffectorRef = useRef();
   const displayedThetasRef = useRef(draftThetas);
@@ -397,10 +403,10 @@ const ArmSimulation = ({
   };
 
   const reset = () => {
-    const nextThetas = clampJointAngles(model, status.thetas);
-    displayedThetasRef.current = nextThetas;
-    setDraftThetas(nextThetas);
-    setTargetPose(initialPose);
+    const initialState = currentInitialState();
+    displayedThetasRef.current = initialState.thetas;
+    setDraftThetas(initialState.thetas);
+    setTargetPose(initialState.pose);
     setResetToken((token) => token + 1);
     clearInteractivePreview();
   };
