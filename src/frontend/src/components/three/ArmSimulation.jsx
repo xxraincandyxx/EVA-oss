@@ -263,12 +263,22 @@ const ArmSimulation = ({
   const isOnline = useRobotStore((state) => state.isOnline);
   const interactivePreview = useRobotStore((state) => state.interactivePreview);
   const interactiveError = useRobotStore((state) => state.interactiveError);
+  const savedInitialPose = useRobotStore(
+    (state) => state.robotInitialPoses[model.id]
+  );
   const emit = useRobotStore((state) => state.emit);
   const clearInteractivePreview = useRobotStore(
     (state) => state.clearInteractivePreview
   );
 
-  const configuredInitialState = useMemo(() => resolveInitialState(model), [model]);
+  const configuredInitialState = useMemo(
+    () =>
+      resolveInitialState({
+        ...model,
+        initialPose: savedInitialPose ?? model.initialPose,
+      }),
+    [model, savedInitialPose]
+  );
   const currentInitialState = () =>
     isOnline
       ? {

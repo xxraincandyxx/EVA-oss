@@ -1,5 +1,12 @@
 import { create } from 'zustand';
 
+import { evaRobotModel } from '../components/three/robotModels/eva';
+import {
+  clearInitialPose,
+  loadInitialPose,
+  saveInitialPose,
+} from './robotPreferences';
+
 const useRobotStore = create((set, get) => ({
   // State
   isOnline: false,
@@ -20,11 +27,36 @@ const useRobotStore = create((set, get) => ({
   activePage: 'analytics',
   llmBackend: 'deepseek',
   localLlmUrl: '',
+  robotInitialPoses: {
+    [evaRobotModel.id]: loadInitialPose(evaRobotModel),
+  },
 
   // Actions
   setSocket: (socket) => set({ socket }),
 
   setActivePage: (page) => set({ activePage: page }),
+
+  setRobotInitialPose: (model, pose) => {
+    const normalized = saveInitialPose(model, pose);
+    set((state) => ({
+      robotInitialPoses: {
+        ...state.robotInitialPoses,
+        [model.id]: normalized,
+      },
+    }));
+    return normalized;
+  },
+
+  resetRobotInitialPose: (model) => {
+    const initialPose = clearInitialPose(model);
+    set((state) => ({
+      robotInitialPoses: {
+        ...state.robotInitialPoses,
+        [model.id]: initialPose,
+      },
+    }));
+    return initialPose;
+  },
 
   initializeListeners: (socket) => {
     const listeners = {
