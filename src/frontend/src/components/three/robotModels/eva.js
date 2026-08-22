@@ -1,0 +1,76 @@
+export const evaRobotModel = {
+  id: 'eva',
+  root: {
+    position: [0, 0, 0],
+    rotation: [-Math.PI / 2, 0, 0],
+  },
+  baseVisual: {
+    key: 'base',
+    position: [0, 0, 0],
+    rotation: [Math.PI / 2, 0, 0],
+  },
+  joints: [
+    {
+      id: 'joint-1',
+      label: 'J1',
+      position: [0, 0, 0.181],
+      rotation: [0, 0, 0],
+      axis: [0, 0, 1],
+      limits: [-174.5, 174.5],
+      visual: { key: 'link-1', rotation: [Math.PI / 2, 0, 0] },
+    },
+    {
+      id: 'joint-2',
+      label: 'J2',
+      position: [0, 0, 0],
+      rotation: [Math.PI / 2, 0, 0],
+      axis: [0, 0, 1],
+      limits: [-174.5, 174.5],
+      visual: { key: 'link-2', rotation: [Math.PI / 2, 0, 0] },
+    },
+    {
+      id: 'joint-3',
+      label: 'J3',
+      position: [-0.203, 0, 0],
+      rotation: [0, 0, 0],
+      axis: [0, 0, 1],
+      limits: [-174.5, 174.5],
+      visual: { key: 'link-3', rotation: [Math.PI / 2, 0, 0] },
+    },
+    {
+      id: 'joint-4',
+      label: 'J4',
+      position: [-0.188, 0, 0],
+      rotation: [0, 0, 0],
+      axis: [0, 0, 1],
+      limits: [-174.5, 174.5],
+      visual: { key: 'link-4', rotation: [Math.PI / 2, 0, 0] },
+    },
+    {
+      id: 'joint-5',
+      label: 'J5',
+      position: [0, 0, 0.073],
+      rotation: [Math.PI / 2, 0, 0],
+      axis: [0, 0, 1],
+      limits: [-174.5, 174.5],
+      visual: {
+        key: 'link-5',
+        rotation: [0, -Math.PI / 2, -Math.PI / 2],
+      },
+    },
+    {
+      id: 'joint-6',
+      label: 'J6',
+      position: [0, 0, 0.06825],
+      rotation: [-Math.PI / 2, 0, 0],
+      axis: [0, 0, 1],
+      limits: [-174.5, 174.5],
+      visual: { key: 'link-6', rotation: [Math.PI / 2, 0, 0] },
+    },
+  ],
+  tool: {
+    position: [0, 0, 0.045],
+    rotation: [0, 0, 0],
+  },
+};
+
