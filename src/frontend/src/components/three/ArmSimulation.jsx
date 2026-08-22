@@ -1,6 +1,6 @@
 import React, { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 
-import { Canvas, useFrame } from '@react-three/fiber';
+import { Canvas } from '@react-three/fiber';
 import { Box, Grid, OrbitControls, TransformControls } from '@react-three/drei';
 import * as THREE from 'three';
 
@@ -37,44 +37,23 @@ const EndEffectorTarget = ({
   pose,
   active,
   transformMode,
-  endEffectorRef,
-  onInitialize,
   onChange,
   onCommit,
   resetToken,
 }) => {
   const targetRef = useRef();
   const dragging = useRef(false);
-  const initialized = useRef(false);
   const [targetObject, setTargetObject] = useState(null);
 
   useEffect(() => {
-    initialized.current = false;
-  }, [resetToken]);
-
-  useEffect(() => {
-    if (!initialized.current || dragging.current || !targetRef.current) return;
+    if (dragging.current || !targetRef.current) return;
     const matrix = robotPoseToSceneMatrix(model, pose);
     matrix.decompose(
       targetRef.current.position,
       targetRef.current.quaternion,
       targetRef.current.scale
     );
-  }, [model, pose]);
-
-  useFrame(() => {
-    if (!initialized.current && endEffectorRef.current && targetRef.current) {
-      endEffectorRef.current.updateWorldMatrix(true, false);
-      endEffectorRef.current.matrixWorld.decompose(
-        targetRef.current.position,
-        targetRef.current.quaternion,
-        targetRef.current.scale
-      );
-      targetRef.current.updateMatrix();
-      onInitialize(sceneMatrixToRobotPose(model, targetRef.current.matrix));
-      initialized.current = true;
-    }
-  });
+  }, [model, pose, resetToken, targetObject]);
 
   const currentPose = () => {
     targetRef.current.updateMatrix();
@@ -307,7 +286,6 @@ const ArmSimulation = ({
   const [draftThetas, setDraftThetas] = useState(configuredInitialState.thetas);
   const [targetPose, setTargetPose] = useState(configuredInitialState.pose);
   const [resetToken, setResetToken] = useState(0);
-  const endEffectorRef = useRef();
   const displayedThetasRef = useRef(draftThetas);
 
   const previewThetas =
@@ -427,7 +405,6 @@ const ArmSimulation = ({
             selectedJoint={selectedJoint}
             onJointSelect={setSelectedJoint}
             onJointChange={updateJoint}
-            endEffectorRef={endEffectorRef}
           />
           {interactive && (
             <EndEffectorTarget
@@ -435,8 +412,6 @@ const ArmSimulation = ({
               pose={targetPose}
               active={mode === 'target'}
               transformMode={transformMode}
-              endEffectorRef={endEffectorRef}
-              onInitialize={setTargetPose}
               onChange={(pose) => updateTargetPose(pose)}
               onCommit={(pose) => updateTargetPose(pose, true)}
               resetToken={resetToken}
