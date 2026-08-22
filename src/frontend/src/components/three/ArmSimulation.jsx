@@ -1,6 +1,6 @@
 import React, { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 
-import { Canvas } from '@react-three/fiber';
+import { Canvas, useThree } from '@react-three/fiber';
 import { Box, Grid, OrbitControls, TransformControls } from '@react-three/drei';
 import * as THREE from 'three';
 
@@ -44,6 +44,7 @@ const EndEffectorTarget = ({
   const targetRef = useRef();
   const dragging = useRef(false);
   const [targetObject, setTargetObject] = useState(null);
+  const invalidate = useThree((state) => state.invalidate);
 
   useEffect(() => {
     if (dragging.current || !targetRef.current) return;
@@ -53,7 +54,8 @@ const EndEffectorTarget = ({
       targetRef.current.quaternion,
       targetRef.current.scale
     );
-  }, [model, pose, resetToken, targetObject]);
+    invalidate();
+  }, [invalidate, model, pose, resetToken, targetObject]);
 
   const currentPose = () => {
     targetRef.current.updateMatrix();
@@ -297,6 +299,8 @@ const ArmSimulation = ({
   const [targetPose, setTargetPose] = useState(configuredInitialState.pose);
   const [resetToken, setResetToken] = useState(0);
   const displayedThetasRef = useRef(draftThetas);
+  const traceFrameRef = useRef(null);
+  const pendingPoseRef = useRef(null);
 
   const previewThetas =
     interactivePreview?.thetas?.length === model.joints.length
@@ -307,6 +311,13 @@ const ArmSimulation = ({
   useEffect(() => {
     displayedThetasRef.current = displayedThetas;
   }, [displayedThetas]);
+
+  useEffect(
+    () => () => {
+      if (traceFrameRef.current) cancelAnimationFrame(traceFrameRef.current);
+    },
+    []
+  );
 
   const updateJoint = (index, value) => {
     clearInteractivePreview();
@@ -342,9 +353,12 @@ const ArmSimulation = ({
     rotation: 0,
   });
 
-  const previewPose = (pose, requestBackend = false) => {
+  const previewPose = (pose, requestBackend = false, fast = false) => {
     clearInteractivePreview();
-    const solution = solvePoseIk(model, displayedThetasRef.current, pose);
+    const solution = solvePoseIk(model, displayedThetasRef.current, pose, {
+      maxIterations: fast ? 24 : 120,
+      restarts: !fast,
+    });
     displayedThetasRef.current = solution;
     setDraftThetas(solution);
     if (requestBackend && isOnline) {
@@ -354,7 +368,20 @@ const ArmSimulation = ({
 
   const updateTargetPose = (pose, commit = false) => {
     setTargetPose(pose);
-    if (traceTarget) previewPose(pose, commit);
+    if (!traceTarget) return;
+
+    pendingPoseRef.current = pose;
+    if (commit) {
+      if (traceFrameRef.current) cancelAnimationFrame(traceFrameRef.current);
+      traceFrameRef.current = null;
+      previewPose(pose, true);
+      return;
+    }
+    if (traceFrameRef.current) return;
+    traceFrameRef.current = requestAnimationFrame(() => {
+      traceFrameRef.current = null;
+      previewPose(pendingPoseRef.current, false, true);
+    });
   };
 
   const updatePoseValue = (group, index, value) => {
@@ -401,7 +428,12 @@ const ArmSimulation = ({
 
   return (
     <div className={`plot-container-shared${interactive ? ' is-interactive' : ''}`}>
-      <Canvas camera={{ position: [1.3, 1, 2.2], fov: 15 }}>
+      <Canvas
+        camera={{ position: [1.3, 1, 2.2], fov: 15 }}
+        dpr={[1, 1.5]}
+        frameloop="demand"
+        gl={{ antialias: false, powerPreference: 'low-power' }}
+      >
         <ambientLight intensity={0.6} />
         <directionalLight position={[10, 10, 5]} intensity={1.5} />
         <axesHelper args={[1]} />

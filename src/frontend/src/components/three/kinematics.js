@@ -110,7 +110,12 @@ export const robotPoseToSceneMatrix = (model, pose) => {
   return transformMatrix(model.root).multiply(robotPose);
 };
 
-export const solvePoseIk = (model, startAngles, targetPose) => {
+export const solvePoseIk = (
+  model,
+  startAngles,
+  targetPose,
+  { maxIterations = 120, restarts = true } = {}
+) => {
   const targetMatrix = robotPoseToSceneMatrix(model, targetPose);
   const targetPosition = new THREE.Vector3();
   const targetQuaternion = new THREE.Quaternion();
@@ -122,7 +127,7 @@ export const solvePoseIk = (model, startAngles, targetPose) => {
   const solveFrom = (seed) => {
     const radians = clampJointAngles(model, seed).map(THREE.MathUtils.degToRad);
 
-    for (let iteration = 0; iteration < 120; iteration += 1) {
+    for (let iteration = 0; iteration < maxIterations; iteration += 1) {
       const angles = radians.map(THREE.MathUtils.radToDeg);
       const current = forwardKinematics(model, angles);
       const positionError = targetPosition.clone().sub(current.position);
@@ -194,7 +199,7 @@ export const solvePoseIk = (model, startAngles, targetPose) => {
 
   const initial = clampJointAngles(model, startAngles);
   const seeds = [initial];
-  if (model.joints.length > 1) {
+  if (restarts && model.joints.length > 1) {
     seeds.push(
       initial.map((angle, index) => angle + (index % 2 === 0 ? 5 : -5)),
       initial.map((angle, index) => angle + (index % 2 === 0 ? -5 : 5))

@@ -73,6 +73,26 @@ test('pose IK solves position and orientation from a singular starting pose', ()
   assert.ok(error.orientation < 0.02, `orientation error was ${error.orientation}`);
 });
 
+test('fast pose IK improves a drag target without solver restarts', () => {
+  const zeroAngles = Array(evaRobotModel.joints.length).fill(0);
+  const initial = sceneMatrixToRobotPose(
+    evaRobotModel,
+    forwardKinematics(evaRobotModel, zeroAngles).matrix
+  );
+  const target = {
+    position: [initial.position[0] + 0.03, initial.position[1], initial.position[2]],
+    orientation: initial.orientation,
+  };
+  const before = poseError(evaRobotModel, zeroAngles, target).position;
+  const solution = solvePoseIk(evaRobotModel, zeroAngles, target, {
+    maxIterations: 24,
+    restarts: false,
+  });
+  const after = poseError(evaRobotModel, solution, target).position;
+
+  assert.ok(after < before / 2, `position error only improved from ${before} to ${after}`);
+});
+
 test('kinematics follows arbitrary joint counts, axes, and limits', () => {
   const planarModel = {
     initialJointAngles: [90, 0],

@@ -1,5 +1,5 @@
-import React, { useMemo, useRef } from 'react';
-import { useFrame } from '@react-three/fiber';
+import React, { useLayoutEffect, useMemo, useRef } from 'react';
+import { useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 
 import useRobotStore from '../../store/useRobotStore';
@@ -121,21 +121,26 @@ const RobotModel = ({
   endEffectorRef,
 }) => {
   const statusThetas = useRobotStore((state) => state.status.thetas);
-  const thetas = clampJointAngles(model, displayThetas ?? statusThetas);
+  const thetas = useMemo(
+    () => clampJointAngles(model, displayThetas ?? statusThetas),
+    [model, displayThetas, statusThetas]
+  );
   const jointRefs = useRef([]);
+  const invalidate = useThree((state) => state.invalidate);
   const BaseVisual = visuals[model.baseVisual.key];
   const setJointRef = (index, object) => {
     jointRefs.current[index] = object;
   };
 
-  useFrame(() => {
+  useLayoutEffect(() => {
     model.joints.forEach((joint, index) => {
       jointRefs.current[index]?.quaternion.setFromAxisAngle(
         new THREE.Vector3(...joint.axis).normalize(),
         THREE.MathUtils.degToRad(thetas[index])
       );
     });
-  });
+    invalidate();
+  }, [invalidate, model, thetas]);
 
   return (
     <group position={model.root.position} rotation={model.root.rotation}>
