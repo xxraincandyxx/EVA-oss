@@ -73,4 +73,3 @@ export const evaRobotModel = {
     rotation: [0, 0, 0],
   },
 };
-

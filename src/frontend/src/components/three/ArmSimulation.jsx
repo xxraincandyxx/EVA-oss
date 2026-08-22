@@ -5,79 +5,24 @@ import { Box, Grid, OrbitControls, TransformControls } from '@react-three/drei';
 import * as THREE from 'three';
 
 import useRobotStore from '../../store/useRobotStore';
+import {
+  clampJointAngles,
+  robotPoseToSceneMatrix,
+  sceneMatrixToRobotPose,
+  solvePoseIk,
+} from './kinematics';
 import RobotModel from './RobotModel';
+import { evaRobotModel } from './robotModels/eva';
+import { evaRobotVisuals } from './robotModels/evaVisuals';
 
-const jointLimits = 174.5;
-const clampJoint = (value) =>
-  Math.max(-jointLimits, Math.min(jointLimits, Number(value)));
-const sceneToRobot = ([x, y, z]) => [x, -z, y];
-const robotToScene = ([x, y, z]) => new THREE.Vector3(x, z, -y);
-
-const jointTransforms = [
-  { position: [0, 0, 0.181], rotation: [0, 0, 0] },
-  { position: [0, 0, 0], rotation: [Math.PI / 2, 0, 0] },
-  { position: [-0.203, 0, 0], rotation: [0, 0, 0] },
-  { position: [-0.188, 0, 0], rotation: [0, 0, 0] },
-  { position: [0, 0, 0.073], rotation: [Math.PI / 2, 0, 0] },
-  { position: [0, 0, 0.06825], rotation: [-Math.PI / 2, 0, 0] },
+const poseFields = [
+  { group: 'position', index: 0, label: 'X', step: 0.005, digits: 3, unit: 'm' },
+  { group: 'position', index: 1, label: 'Y', step: 0.005, digits: 3, unit: 'm' },
+  { group: 'position', index: 2, label: 'Z', step: 0.005, digits: 3, unit: 'm' },
+  { group: 'orientation', index: 0, label: 'A', step: 1, digits: 1, unit: 'deg' },
+  { group: 'orientation', index: 1, label: 'B', step: 1, digits: 1, unit: 'deg' },
+  { group: 'orientation', index: 2, label: 'C', step: 1, digits: 1, unit: 'deg' },
 ];
-
-const forwardEndEffector = (radians) => {
-  const transform = new THREE.Matrix4().makeRotationX(-Math.PI / 2);
-
-  jointTransforms.forEach((joint, index) => {
-    transform.multiply(new THREE.Matrix4().makeTranslation(...joint.position));
-    transform.multiply(
-      new THREE.Matrix4().makeRotationFromEuler(
-        new THREE.Euler(...joint.rotation, 'XYZ')
-      )
-    );
-    transform.multiply(new THREE.Matrix4().makeRotationZ(radians[index]));
-  });
-
-  transform.multiply(new THREE.Matrix4().makeTranslation(0, 0, 0.045));
-  return new THREE.Vector3().setFromMatrixPosition(transform);
-};
-
-const solvePositionIk = (startThetas, targetPosition) => {
-  const target = robotToScene(targetPosition);
-  const radians = startThetas.map(THREE.MathUtils.degToRad);
-  const limit = THREE.MathUtils.degToRad(jointLimits);
-  const epsilon = 0.0001;
-  const damping = 0.000025;
-
-  for (let iteration = 0; iteration < 80; iteration += 1) {
-    const current = forwardEndEffector(radians);
-    const error = target.clone().sub(current);
-    if (error.lengthSq() < 0.00000225) break;
-
-    const jacobian = radians.map((_, index) => {
-      const sample = [...radians];
-      sample[index] += epsilon;
-      return forwardEndEffector(sample).sub(current).multiplyScalar(1 / epsilon);
-    });
-
-    const system = new THREE.Matrix3().set(
-      jacobian.reduce((sum, column) => sum + column.x * column.x, damping),
-      jacobian.reduce((sum, column) => sum + column.x * column.y, 0),
-      jacobian.reduce((sum, column) => sum + column.x * column.z, 0),
-      jacobian.reduce((sum, column) => sum + column.y * column.x, 0),
-      jacobian.reduce((sum, column) => sum + column.y * column.y, damping),
-      jacobian.reduce((sum, column) => sum + column.y * column.z, 0),
-      jacobian.reduce((sum, column) => sum + column.z * column.x, 0),
-      jacobian.reduce((sum, column) => sum + column.z * column.y, 0),
-      jacobian.reduce((sum, column) => sum + column.z * column.z, damping)
-    );
-    const weightedError = error.applyMatrix3(system.invert());
-
-    jacobian.forEach((column, index) => {
-      const step = THREE.MathUtils.clamp(column.dot(weightedError), -0.14, 0.14);
-      radians[index] = THREE.MathUtils.clamp(radians[index] + step, -limit, limit);
-    });
-  }
-
-  return radians.map(THREE.MathUtils.radToDeg);
-};
 
 const Loader = () => (
   <Box position={[0, 0.5, 0]}>
@@ -86,45 +31,75 @@ const Loader = () => (
   </Box>
 );
 
-const EndEffectorTarget = ({ endEffectorRef, onChange, onCommit, resetToken }) => {
+const EndEffectorTarget = ({
+  model,
+  pose,
+  active,
+  transformMode,
+  endEffectorRef,
+  onInitialize,
+  onChange,
+  onCommit,
+  resetToken,
+}) => {
   const targetRef = useRef();
-  const [targetObject, setTargetObject] = useState(null);
+  const dragging = useRef(false);
   const initialized = useRef(false);
+  const [targetObject, setTargetObject] = useState(null);
 
   useEffect(() => {
     initialized.current = false;
   }, [resetToken]);
 
+  useEffect(() => {
+    if (!initialized.current || dragging.current || !targetRef.current) return;
+    const matrix = robotPoseToSceneMatrix(model, pose);
+    matrix.decompose(
+      targetRef.current.position,
+      targetRef.current.quaternion,
+      targetRef.current.scale
+    );
+  }, [model, pose]);
+
   useFrame(() => {
     if (!initialized.current && endEffectorRef.current && targetRef.current) {
-      endEffectorRef.current.getWorldPosition(targetRef.current.position);
-      onChange(sceneToRobot(targetRef.current.position.toArray()));
+      endEffectorRef.current.updateWorldMatrix(true, false);
+      endEffectorRef.current.matrixWorld.decompose(
+        targetRef.current.position,
+        targetRef.current.quaternion,
+        targetRef.current.scale
+      );
+      targetRef.current.updateMatrix();
+      onInitialize(sceneMatrixToRobotPose(model, targetRef.current.matrix));
       initialized.current = true;
     }
   });
 
-  const reportPosition = () => {
-    if (targetRef.current) {
-      onChange(sceneToRobot(targetRef.current.position.toArray()));
-    }
+  const currentPose = () => {
+    targetRef.current.updateMatrix();
+    return sceneMatrixToRobotPose(model, targetRef.current.matrix);
   };
 
   return (
     <>
-      {targetObject && (
+      {active && targetObject && (
         <TransformControls
           object={targetObject}
-          mode="translate"
+          mode={transformMode}
+          space="world"
           size={0.65}
-          onObjectChange={reportPosition}
+          onMouseDown={() => {
+            dragging.current = true;
+          }}
+          onObjectChange={() => onChange(currentPose())}
           onMouseUp={() => {
-            if (targetRef.current) {
-              onCommit(sceneToRobot(targetRef.current.position.toArray()));
-            }
+            dragging.current = false;
+            onCommit(currentPose());
           }}
         />
       )}
       <group
+        visible={active}
         ref={(object) => {
           targetRef.current = object;
           setTargetObject(object);
@@ -138,16 +113,22 @@ const EndEffectorTarget = ({ endEffectorRef, onChange, onCommit, resetToken }) =
           <torusGeometry args={[0.032, 0.0025, 8, 36]} />
           <meshBasicMaterial color="#ffffff" depthTest={false} />
         </mesh>
+        <axesHelper args={[0.065]} />
       </group>
     </>
   );
 };
 
 const InteractionPanel = ({
+  model,
   mode,
   setMode,
-  target,
-  updateTarget,
+  pose,
+  updatePoseValue,
+  transformMode,
+  setTransformMode,
+  traceTarget,
+  setTraceTarget,
   thetas,
   selectedJoint,
   setSelectedJoint,
@@ -156,110 +137,148 @@ const InteractionPanel = ({
   onMove,
   onReset,
   error,
-}) => (
-  <div className="arm-interaction-panel">
-    <div className="arm-mode-switch" aria-label="Manipulator mode">
-      <button
-        type="button"
-        className={mode === 'target' ? 'active' : ''}
-        onClick={() => setMode('target')}
-      >
-        <i className="bx bx-move"></i>
-        End effector
-      </button>
-      <button
-        type="button"
-        className={mode === 'joints' ? 'active' : ''}
-        onClick={() => setMode('joints')}
-      >
-        <i className="bx bx-rotate-right"></i>
-        Joints
-      </button>
-    </div>
+}) => {
+  const selectedDefinition = model.joints[selectedJoint];
 
-    {mode === 'target' ? (
-      <div className="arm-target-readout">
-        {['X', 'Y', 'Z'].map((axis, index) => (
-          <label key={axis}>
-            <b>{axis}</b>
-            <input
-              type="number"
-              step="0.005"
-              value={target[index].toFixed(3)}
-              onChange={(event) => updateTarget(index, event.target.value)}
-              aria-label={`${axis} target in meters`}
-            />
-            <span>m</span>
-          </label>
-        ))}
+  return (
+    <div className="arm-interaction-panel">
+      <div className="arm-mode-switch" aria-label="Manipulator mode">
+        <button
+          type="button"
+          className={mode === 'target' ? 'active' : ''}
+          onClick={() => setMode('target')}
+        >
+          <i className="bx bx-move"></i>
+          End effector
+        </button>
+        <button
+          type="button"
+          className={mode === 'joints' ? 'active' : ''}
+          onClick={() => setMode('joints')}
+        >
+          <i className="bx bx-rotate-right"></i>
+          Joints
+        </button>
       </div>
-    ) : (
-      <div className="arm-joint-editor">
-        <div className="arm-joint-tabs">
-          {thetas.map((_, index) => (
-            <button
-              type="button"
-              key={index}
-              className={selectedJoint === index ? 'active' : ''}
-              onClick={() => setSelectedJoint(index)}
-              aria-label={`Select joint ${index + 1}`}
-            >
-              J{index + 1}
-            </button>
-          ))}
-        </div>
-        <label>
-          <span>Joint {selectedJoint + 1}</span>
-          <div className="arm-joint-value">
-            <button
-              type="button"
-              onClick={() => updateJoint(selectedJoint, thetas[selectedJoint] - 5)}
-              aria-label="Decrease joint angle"
-            >
-              <i className="bx bx-minus"></i>
-            </button>
-            <output>{thetas[selectedJoint].toFixed(1)} deg</output>
-            <button
-              type="button"
-              onClick={() => updateJoint(selectedJoint, thetas[selectedJoint] + 5)}
-              aria-label="Increase joint angle"
-            >
-              <i className="bx bx-plus"></i>
-            </button>
+
+      {mode === 'target' ? (
+        <>
+          <div className="arm-target-tools">
+            <div className="arm-transform-switch" aria-label="End-effector transform">
+              <button
+                type="button"
+                className={transformMode === 'translate' ? 'active' : ''}
+                onClick={() => setTransformMode('translate')}
+                title="Move end effector"
+              >
+                <i className="bx bx-move"></i>
+                Position
+              </button>
+              <button
+                type="button"
+                className={transformMode === 'rotate' ? 'active' : ''}
+                onClick={() => setTransformMode('rotate')}
+                title="Rotate end effector"
+              >
+                <i className="bx bx-rotate-right"></i>
+                Gesture
+              </button>
+            </div>
+            <label className="arm-trace-toggle">
+              <input
+                type="checkbox"
+                checked={traceTarget}
+                onChange={(event) => setTraceTarget(event.target.checked)}
+              />
+              <span>Trace target</span>
+            </label>
           </div>
-          <input
-            type="range"
-            min={-jointLimits}
-            max={jointLimits}
-            step="0.5"
-            value={thetas[selectedJoint]}
-            onChange={(event) => updateJoint(selectedJoint, event.target.value)}
-          />
-        </label>
+          <div className="arm-target-readout">
+            {poseFields.map((field) => (
+              <label key={field.label}>
+                <b>{field.label}</b>
+                <input
+                  type="number"
+                  step={field.step}
+                  value={pose[field.group][field.index].toFixed(field.digits)}
+                  onChange={(event) =>
+                    updatePoseValue(field.group, field.index, event.target.value)
+                  }
+                  aria-label={`${field.label} ${field.group} target`}
+                />
+                <span>{field.unit}</span>
+              </label>
+            ))}
+          </div>
+        </>
+      ) : (
+        <div className="arm-joint-editor">
+          <div className="arm-joint-tabs">
+            {model.joints.map((joint, index) => (
+              <button
+                type="button"
+                key={joint.id}
+                className={selectedJoint === index ? 'active' : ''}
+                onClick={() => setSelectedJoint(index)}
+                aria-label={`Select ${joint.label}`}
+              >
+                {joint.label}
+              </button>
+            ))}
+          </div>
+          <label>
+            <span>{selectedDefinition.label}</span>
+            <div className="arm-joint-value">
+              <button
+                type="button"
+                onClick={() => updateJoint(selectedJoint, thetas[selectedJoint] - 5)}
+                aria-label="Decrease joint angle"
+              >
+                <i className="bx bx-minus"></i>
+              </button>
+              <output>{thetas[selectedJoint].toFixed(1)} deg</output>
+              <button
+                type="button"
+                onClick={() => updateJoint(selectedJoint, thetas[selectedJoint] + 5)}
+                aria-label="Increase joint angle"
+              >
+                <i className="bx bx-plus"></i>
+              </button>
+            </div>
+            <input
+              type="range"
+              min={selectedDefinition.limits[0]}
+              max={selectedDefinition.limits[1]}
+              step="0.5"
+              value={thetas[selectedJoint]}
+              onChange={(event) => updateJoint(selectedJoint, event.target.value)}
+            />
+          </label>
+        </div>
+      )}
+
+      {error && <p className="arm-interaction-error">{error}</p>}
+
+      <div className="arm-interaction-actions">
+        <button type="button" onClick={onReset} title="Reset preview">
+          <i className="bx bx-reset"></i>
+        </button>
+        <button type="button" onClick={onPreview}>
+          Preview
+        </button>
+        <button type="button" className="primary" onClick={onMove}>
+          Move
+        </button>
       </div>
-    )}
-
-    {error && <p className="arm-interaction-error">{error}</p>}
-
-    <div className="arm-interaction-actions">
-      <button type="button" onClick={onReset} title="Reset preview">
-        <i className="bx bx-reset"></i>
-      </button>
-      <button type="button" onClick={onPreview}>
-        Preview
-      </button>
-      <button
-        type="button"
-        className="primary"
-        onClick={onMove}
-      >
-        Move
-      </button>
     </div>
-  </div>
-);
+  );
+};
 
-const ArmSimulation = ({ interactive = false }) => {
+const ArmSimulation = ({
+  interactive = false,
+  model = evaRobotModel,
+  visuals = evaRobotVisuals,
+}) => {
   const status = useRobotStore((state) => state.status);
   const isOnline = useRobotStore((state) => state.isOnline);
   const interactivePreview = useRobotStore((state) => state.interactivePreview);
@@ -269,46 +288,51 @@ const ArmSimulation = ({ interactive = false }) => {
     (state) => state.clearInteractivePreview
   );
 
+  const initialPose = {
+    position: status.position.slice(0, 3),
+    orientation: status.orientation.slice(0, 3),
+  };
   const [mode, setMode] = useState('target');
+  const [transformMode, setTransformMode] = useState('translate');
+  const [traceTarget, setTraceTargetState] = useState(true);
   const [selectedJoint, setSelectedJoint] = useState(0);
-  const [draftThetas, setDraftThetas] = useState(status.thetas);
-  const [target, setTarget] = useState(status.position);
+  const [draftThetas, setDraftThetas] = useState(() =>
+    clampJointAngles(model, status.thetas)
+  );
+  const [targetPose, setTargetPose] = useState(initialPose);
   const [resetToken, setResetToken] = useState(0);
   const endEffectorRef = useRef();
+  const displayedThetasRef = useRef(draftThetas);
 
   const previewThetas =
-    interactivePreview?.thetas?.length === 6
-      ? interactivePreview.thetas.map(clampJoint)
+    interactivePreview?.thetas?.length === model.joints.length
+      ? clampJointAngles(model, interactivePreview.thetas)
       : null;
   const displayedThetas = previewThetas ?? draftThetas;
 
+  useEffect(() => {
+    displayedThetasRef.current = displayedThetas;
+  }, [displayedThetas]);
+
   const updateJoint = (index, value) => {
-    const currentThetas = displayedThetas;
     clearInteractivePreview();
-    setDraftThetas(() =>
-      currentThetas.map((theta, jointIndex) =>
-        jointIndex === index ? clampJoint(value) : theta
+    const nextThetas = clampJointAngles(
+      model,
+      displayedThetasRef.current.map((theta, jointIndex) =>
+        jointIndex === index ? Number(value) : theta
       )
     );
+    displayedThetasRef.current = nextThetas;
+    setDraftThetas(nextThetas);
   };
 
-  const updateTarget = (index, value) => {
-    const numericValue = Number(value);
-    if (!Number.isFinite(numericValue)) return;
-    setTarget((current) =>
-      current.map((coordinate, coordinateIndex) =>
-        coordinateIndex === index ? numericValue : coordinate
-      )
-    );
-  };
-
-  const cartesianPayload = (position = target) => ({
-    x: position[0],
-    y: position[1],
-    z: position[2],
-    a: status.orientation[0],
-    b: status.orientation[1],
-    c: status.orientation[2],
+  const cartesianPayload = (pose = targetPose) => ({
+    x: pose.position[0],
+    y: pose.position[1],
+    z: pose.position[2],
+    a: pose.orientation[0],
+    b: pose.orientation[1],
+    c: pose.orientation[2],
     duration: 2,
     rotation: 0,
   });
@@ -317,20 +341,47 @@ const ArmSimulation = ({ interactive = false }) => {
     ...Object.fromEntries(
       displayedThetas.map((theta, index) => [
         `axis${index + 1}`,
-        theta - status.thetas[index],
+        theta - Number(status.thetas[index] ?? 0),
       ])
     ),
     duration: 2,
     rotation: 0,
   });
 
-  const preview = (position = target) => {
+  const previewPose = (pose, requestBackend = false) => {
+    clearInteractivePreview();
+    const solution = solvePoseIk(model, displayedThetasRef.current, pose);
+    displayedThetasRef.current = solution;
+    setDraftThetas(solution);
+    if (requestBackend && isOnline) {
+      emit('preview_interactive_cartesian', cartesianPayload(pose));
+    }
+  };
+
+  const updateTargetPose = (pose, commit = false) => {
+    setTargetPose(pose);
+    if (traceTarget) previewPose(pose, commit);
+  };
+
+  const updatePoseValue = (group, index, value) => {
+    const numericValue = Number(value);
+    if (!Number.isFinite(numericValue)) return;
+    const pose = {
+      position: [...targetPose.position],
+      orientation: [...targetPose.orientation],
+    };
+    pose[group][index] = numericValue;
+    updateTargetPose(pose);
+  };
+
+  const setTraceTarget = (enabled) => {
+    setTraceTargetState(enabled);
+    if (enabled) previewPose(targetPose);
+  };
+
+  const preview = () => {
     if (mode === 'target') {
-      clearInteractivePreview();
-      setDraftThetas(solvePositionIk(displayedThetas, position));
-      if (isOnline) {
-        emit('preview_interactive_cartesian', cartesianPayload(position));
-      }
+      previewPose(targetPose, true);
     } else if (isOnline) {
       emit('simulate_with_axes', axesPayload());
     }
@@ -346,8 +397,10 @@ const ArmSimulation = ({ interactive = false }) => {
   };
 
   const reset = () => {
-    setDraftThetas(status.thetas);
-    setTarget(status.position);
+    const nextThetas = clampJointAngles(model, status.thetas);
+    displayedThetasRef.current = nextThetas;
+    setDraftThetas(nextThetas);
+    setTargetPose(initialPose);
     setResetToken((token) => token + 1);
     clearInteractivePreview();
   };
@@ -361,6 +414,8 @@ const ArmSimulation = ({ interactive = false }) => {
 
         <Suspense fallback={<Loader />}>
           <RobotModel
+            model={model}
+            visuals={visuals}
             displayThetas={interactive ? displayedThetas : undefined}
             interactive={interactive && mode === 'joints'}
             selectedJoint={selectedJoint}
@@ -368,14 +423,16 @@ const ArmSimulation = ({ interactive = false }) => {
             onJointChange={updateJoint}
             endEffectorRef={endEffectorRef}
           />
-          {interactive && mode === 'target' && (
+          {interactive && (
             <EndEffectorTarget
+              model={model}
+              pose={targetPose}
+              active={mode === 'target'}
+              transformMode={transformMode}
               endEffectorRef={endEffectorRef}
-              onChange={setTarget}
-              onCommit={(position) => {
-                setTarget(position);
-                if (isOnline) preview(position);
-              }}
+              onInitialize={setTargetPose}
+              onChange={(pose) => updateTargetPose(pose)}
+              onCommit={(pose) => updateTargetPose(pose, true)}
               resetToken={resetToken}
             />
           )}
@@ -387,15 +444,20 @@ const ArmSimulation = ({ interactive = false }) => {
 
       {interactive && (
         <InteractionPanel
+          model={model}
           mode={mode}
           setMode={setMode}
-          target={target}
-          updateTarget={updateTarget}
+          pose={targetPose}
+          updatePoseValue={updatePoseValue}
+          transformMode={transformMode}
+          setTransformMode={setTransformMode}
+          traceTarget={traceTarget}
+          setTraceTarget={setTraceTarget}
           thetas={displayedThetas}
           selectedJoint={selectedJoint}
           setSelectedJoint={setSelectedJoint}
           updateJoint={updateJoint}
-          onPreview={() => preview()}
+          onPreview={preview}
           onMove={move}
           onReset={reset}
           error={interactiveError}

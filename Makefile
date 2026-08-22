@@ -32,6 +32,7 @@ test-cpp: build
 	ctest --test-dir $(BUILD_DIR) --output-on-failure
 
 test-frontend:
+	npm --prefix $(FRONTEND_DIR) run test
 	npm --prefix $(FRONTEND_DIR) run build
 
 test: test-python test-cpp test-frontend

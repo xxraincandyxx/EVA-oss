@@ -5,23 +5,7 @@ import * as THREE from 'three';
 import useRobotStore from '../../store/useRobotStore';
 import { clampJointAngles } from './kinematics';
 import { evaRobotModel } from './robotModels/eva';
-import { Model as BaseLink } from './meshes/BaseLink';
-import { Model as Link1 } from './meshes/Link1';
-import { Model as Link2 } from './meshes/Link2';
-import { Model as Link3 } from './meshes/Link3';
-import { Model as Link4 } from './meshes/Link4';
-import { Model as Link5 } from './meshes/Link5';
-import { Model as Link6 } from './meshes/Link6';
-
-const visuals = {
-  base: BaseLink,
-  'link-1': Link1,
-  'link-2': Link2,
-  'link-3': Link3,
-  'link-4': Link4,
-  'link-5': Link5,
-  'link-6': Link6,
-};
+import { evaRobotVisuals } from './robotModels/evaVisuals';
 
 const jointColors = ['#2d74c8', '#3c9b68', '#e0a32f', '#d25353', '#7c62c9', '#2698a8'];
 
@@ -75,6 +59,7 @@ const JointHandle = ({ joint, index, angle, selected, onSelect, onChange }) => {
 
 const RobotJoint = ({
   model,
+  visuals,
   index,
   thetas,
   setJointRef,
@@ -110,6 +95,7 @@ const RobotJoint = ({
         {Visual && <Visual {...joint.visual} />}
         <RobotJoint
           model={model}
+          visuals={visuals}
           index={index + 1}
           thetas={thetas}
           setJointRef={setJointRef}
@@ -126,6 +112,7 @@ const RobotJoint = ({
 
 const RobotModel = ({
   model = evaRobotModel,
+  visuals = evaRobotVisuals,
   displayThetas,
   interactive = false,
   selectedJoint = 0,
@@ -155,6 +142,7 @@ const RobotModel = ({
       {BaseVisual && <BaseVisual {...model.baseVisual} />}
       <RobotJoint
         model={model}
+        visuals={visuals}
         index={0}
         thetas={thetas}
         setJointRef={setJointRef}

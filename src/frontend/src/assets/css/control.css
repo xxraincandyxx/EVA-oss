@@ -30,6 +30,7 @@
 }
 
 .arm-mode-switch button,
+.arm-transform-switch button,
 .arm-joint-tabs button,
 .arm-interaction-actions button {
   border: 0;
@@ -55,11 +56,63 @@
   box-shadow: 0 1px 4px rgba(30, 39, 54, 0.12);
 }
 
+.arm-target-tools {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.arm-transform-switch {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  flex: 1;
+  gap: 3px;
+  padding: 2px;
+  border-radius: 5px;
+  background: var(--grey);
+}
+
+.arm-transform-switch button {
+  min-height: 28px;
+  border-radius: 4px;
+  font-size: 0.7rem;
+  font-weight: 600;
+}
+
+.arm-transform-switch button .bx {
+  margin-right: 3px;
+}
+
+.arm-transform-switch button.active {
+  color: var(--primary);
+  background: var(--light);
+}
+
+.arm-trace-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--dark);
+  font-size: 0.68rem;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.arm-trace-toggle input {
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  accent-color: var(--primary);
+}
+
 .arm-target-readout {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 5px;
-  margin: 9px 0;
+  margin: 6px 0 9px;
 }
 
 .arm-target-readout label {

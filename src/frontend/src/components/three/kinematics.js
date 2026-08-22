@@ -116,62 +116,95 @@ export const solvePoseIk = (model, startAngles, targetPose) => {
   const targetQuaternion = new THREE.Quaternion();
   targetMatrix.decompose(targetPosition, targetQuaternion, new THREE.Vector3());
 
-  const radians = clampJointAngles(model, startAngles).map(THREE.MathUtils.degToRad);
   const epsilon = 0.0001;
   const orientationWeight = 0.16;
   const damping = 0.0025;
+  const solveFrom = (seed) => {
+    const radians = clampJointAngles(model, seed).map(THREE.MathUtils.degToRad);
 
-  for (let iteration = 0; iteration < 120; iteration += 1) {
-    const angles = radians.map(THREE.MathUtils.radToDeg);
-    const current = forwardKinematics(model, angles);
-    const positionError = targetPosition.clone().sub(current.position);
-    const orientationError = rotationVector(current.quaternion, targetQuaternion);
-    if (positionError.length() < 0.0015 && orientationError.length() < 0.02) break;
+    for (let iteration = 0; iteration < 120; iteration += 1) {
+      const angles = radians.map(THREE.MathUtils.radToDeg);
+      const current = forwardKinematics(model, angles);
+      const positionError = targetPosition.clone().sub(current.position);
+      const orientationError = rotationVector(current.quaternion, targetQuaternion);
+      if (positionError.length() < 0.0015 && orientationError.length() < 0.02) break;
 
-    const error = [
-      ...positionError.toArray(),
-      ...orientationError.multiplyScalar(orientationWeight).toArray(),
-    ];
-    const jacobian = model.joints.map((_, index) => {
-      const sample = [...radians];
-      sample[index] += epsilon;
-      const sampledPose = forwardKinematics(
-        model,
-        sample.map(THREE.MathUtils.radToDeg)
-      );
-      const positionDerivative = sampledPose.position
-        .clone()
-        .sub(current.position)
-        .multiplyScalar(1 / epsilon);
-      const orientationDerivative = rotationVector(
-        current.quaternion,
-        sampledPose.quaternion
-      ).multiplyScalar(orientationWeight / epsilon);
-      return [...positionDerivative.toArray(), ...orientationDerivative.toArray()];
-    });
+      const error = [
+        ...positionError.toArray(),
+        ...orientationError.multiplyScalar(orientationWeight).toArray(),
+      ];
+      const jacobian = model.joints.map((_, index) => {
+        const sample = [...radians];
+        sample[index] += epsilon;
+        const sampledPose = forwardKinematics(
+          model,
+          sample.map(THREE.MathUtils.radToDeg)
+        );
+        const positionDerivative = sampledPose.position
+          .clone()
+          .sub(current.position)
+          .multiplyScalar(1 / epsilon);
+        const orientationDerivative = rotationVector(
+          current.quaternion,
+          sampledPose.quaternion
+        ).multiplyScalar(orientationWeight / epsilon);
+        return [...positionDerivative.toArray(), ...orientationDerivative.toArray()];
+      });
 
-    const normalMatrix = model.joints.map((_, row) =>
-      model.joints.map((__, column) =>
-        jacobian[row].reduce(
-          (sum, value, index) => sum + value * jacobian[column][index],
-          row === column ? damping : 0
+      const normalMatrix = model.joints.map((_, row) =>
+        model.joints.map((__, column) =>
+          jacobian[row].reduce(
+            (sum, value, index) => sum + value * jacobian[column][index],
+            row === column ? damping : 0
+          )
         )
-      )
-    );
-    const gradient = jacobian.map((column) =>
-      column.reduce((sum, value, index) => sum + value * error[index], 0)
-    );
-    const steps = solveLinearSystem(normalMatrix, gradient);
+      );
+      const gradient = jacobian.map((column) =>
+        column.reduce((sum, value, index) => sum + value * error[index], 0)
+      );
+      const steps = solveLinearSystem(normalMatrix, gradient);
 
-    model.joints.forEach((joint, index) => {
-      const [minimum, maximum] = joint.limits.map(THREE.MathUtils.degToRad);
-      const step = Number.isFinite(steps[index])
-        ? THREE.MathUtils.clamp(steps[index], -0.12, 0.12)
-        : 0;
-      radians[index] = THREE.MathUtils.clamp(radians[index] + step, minimum, maximum);
-    });
+      model.joints.forEach((joint, index) => {
+        const [minimum, maximum] = joint.limits.map(THREE.MathUtils.degToRad);
+        const step = Number.isFinite(steps[index])
+          ? THREE.MathUtils.clamp(steps[index], -0.12, 0.12)
+          : 0;
+        radians[index] = THREE.MathUtils.clamp(
+          radians[index] + step,
+          minimum,
+          maximum
+        );
+      });
+    }
+
+    const angles = clampJointAngles(model, radians.map(THREE.MathUtils.radToDeg));
+    const result = forwardKinematics(model, angles);
+    const positionError = result.position.distanceTo(targetPosition);
+    const orientationError = rotationVector(
+      result.quaternion,
+      targetQuaternion
+    ).length();
+    return {
+      angles,
+      positionError,
+      orientationError,
+      score: positionError + orientationError * orientationWeight,
+    };
+  };
+
+  const initial = clampJointAngles(model, startAngles);
+  const seeds = [initial];
+  if (model.joints.length > 1) {
+    seeds.push(
+      initial.map((angle, index) => angle + (index % 2 === 0 ? 5 : -5)),
+      initial.map((angle, index) => angle + (index % 2 === 0 ? -5 : 5))
+    );
   }
 
-  return clampJointAngles(model, radians.map(THREE.MathUtils.radToDeg));
+  let best = solveFrom(seeds[0]);
+  for (let index = 1; index < seeds.length && best.score > 0.005; index += 1) {
+    const candidate = solveFrom(seeds[index]);
+    if (candidate.score < best.score) best = candidate;
+  }
+  return best.angles;
 };
-
