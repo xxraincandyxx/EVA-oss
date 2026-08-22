@@ -2,6 +2,7 @@ import React, { Suspense, useEffect, useRef, useState } from 'react';
 
 import { Canvas, useFrame } from '@react-three/fiber';
 import { Box, Grid, OrbitControls, TransformControls } from '@react-three/drei';
+import * as THREE from 'three';
 
 import useRobotStore from '../../store/useRobotStore';
 import RobotModel from './RobotModel';
@@ -10,6 +11,73 @@ const jointLimits = 174.5;
 const clampJoint = (value) =>
   Math.max(-jointLimits, Math.min(jointLimits, Number(value)));
 const sceneToRobot = ([x, y, z]) => [x, -z, y];
+const robotToScene = ([x, y, z]) => new THREE.Vector3(x, z, -y);
+
+const jointTransforms = [
+  { position: [0, 0, 0.181], rotation: [0, 0, 0] },
+  { position: [0, 0, 0], rotation: [Math.PI / 2, 0, 0] },
+  { position: [-0.203, 0, 0], rotation: [0, 0, 0] },
+  { position: [-0.188, 0, 0], rotation: [0, 0, 0] },
+  { position: [0, 0, 0.073], rotation: [Math.PI / 2, 0, 0] },
+  { position: [0, 0, 0.06825], rotation: [-Math.PI / 2, 0, 0] },
+];
+
+const forwardEndEffector = (radians) => {
+  const transform = new THREE.Matrix4().makeRotationX(-Math.PI / 2);
+
+  jointTransforms.forEach((joint, index) => {
+    transform.multiply(new THREE.Matrix4().makeTranslation(...joint.position));
+    transform.multiply(
+      new THREE.Matrix4().makeRotationFromEuler(
+        new THREE.Euler(...joint.rotation, 'XYZ')
+      )
+    );
+    transform.multiply(new THREE.Matrix4().makeRotationZ(radians[index]));
+  });
+
+  transform.multiply(new THREE.Matrix4().makeTranslation(0, 0, 0.045));
+  return new THREE.Vector3().setFromMatrixPosition(transform);
+};
+
+const solvePositionIk = (startThetas, targetPosition) => {
+  const target = robotToScene(targetPosition);
+  const radians = startThetas.map(THREE.MathUtils.degToRad);
+  const limit = THREE.MathUtils.degToRad(jointLimits);
+  const epsilon = 0.0001;
+  const damping = 0.000025;
+
+  for (let iteration = 0; iteration < 80; iteration += 1) {
+    const current = forwardEndEffector(radians);
+    const error = target.clone().sub(current);
+    if (error.lengthSq() < 0.00000225) break;
+
+    const jacobian = radians.map((_, index) => {
+      const sample = [...radians];
+      sample[index] += epsilon;
+      return forwardEndEffector(sample).sub(current).multiplyScalar(1 / epsilon);
+    });
+
+    const system = new THREE.Matrix3().set(
+      jacobian.reduce((sum, column) => sum + column.x * column.x, damping),
+      jacobian.reduce((sum, column) => sum + column.x * column.y, 0),
+      jacobian.reduce((sum, column) => sum + column.x * column.z, 0),
+      jacobian.reduce((sum, column) => sum + column.y * column.x, 0),
+      jacobian.reduce((sum, column) => sum + column.y * column.y, damping),
+      jacobian.reduce((sum, column) => sum + column.y * column.z, 0),
+      jacobian.reduce((sum, column) => sum + column.z * column.x, 0),
+      jacobian.reduce((sum, column) => sum + column.z * column.y, 0),
+      jacobian.reduce((sum, column) => sum + column.z * column.z, damping)
+    );
+    const weightedError = error.applyMatrix3(system.invert());
+
+    jacobian.forEach((column, index) => {
+      const step = THREE.MathUtils.clamp(column.dot(weightedError), -0.14, 0.14);
+      radians[index] = THREE.MathUtils.clamp(radians[index] + step, -limit, limit);
+    });
+  }
+
+  return radians.map(THREE.MathUtils.radToDeg);
+};
 
 const Loader = () => (
   <Box position={[0, 0.5, 0]}>
@@ -79,6 +147,7 @@ const InteractionPanel = ({
   mode,
   setMode,
   target,
+  updateTarget,
   thetas,
   selectedJoint,
   setSelectedJoint,
@@ -86,7 +155,6 @@ const InteractionPanel = ({
   onPreview,
   onMove,
   onReset,
-  isOnline,
   error,
 }) => (
   <div className="arm-interaction-panel">
@@ -112,9 +180,17 @@ const InteractionPanel = ({
     {mode === 'target' ? (
       <div className="arm-target-readout">
         {['X', 'Y', 'Z'].map((axis, index) => (
-          <span key={axis}>
-            <b>{axis}</b> {target[index].toFixed(3)} m
-          </span>
+          <label key={axis}>
+            <b>{axis}</b>
+            <input
+              type="number"
+              step="0.005"
+              value={target[index].toFixed(3)}
+              onChange={(event) => updateTarget(index, event.target.value)}
+              aria-label={`${axis} target in meters`}
+            />
+            <span>m</span>
+          </label>
         ))}
       </div>
     ) : (
@@ -169,14 +245,13 @@ const InteractionPanel = ({
       <button type="button" onClick={onReset} title="Reset preview">
         <i className="bx bx-reset"></i>
       </button>
-      <button type="button" onClick={onPreview} disabled={!isOnline}>
+      <button type="button" onClick={onPreview}>
         Preview
       </button>
       <button
         type="button"
         className="primary"
         onClick={onMove}
-        disabled={!isOnline}
       >
         Move
       </button>
@@ -217,6 +292,16 @@ const ArmSimulation = ({ interactive = false }) => {
     );
   };
 
+  const updateTarget = (index, value) => {
+    const numericValue = Number(value);
+    if (!Number.isFinite(numericValue)) return;
+    setTarget((current) =>
+      current.map((coordinate, coordinateIndex) =>
+        coordinateIndex === index ? numericValue : coordinate
+      )
+    );
+  };
+
   const cartesianPayload = (position = target) => ({
     x: position[0],
     y: position[1],
@@ -241,13 +326,21 @@ const ArmSimulation = ({ interactive = false }) => {
 
   const preview = (position = target) => {
     if (mode === 'target') {
-      emit('preview_interactive_cartesian', cartesianPayload(position));
-    } else {
+      clearInteractivePreview();
+      setDraftThetas(solvePositionIk(displayedThetas, position));
+      if (isOnline) {
+        emit('preview_interactive_cartesian', cartesianPayload(position));
+      }
+    } else if (isOnline) {
       emit('simulate_with_axes', axesPayload());
     }
   };
 
   const move = () => {
+    if (!isOnline) {
+      preview();
+      return;
+    }
     const event = mode === 'target' ? 'emit_with_cartesian' : 'emit_with_axes';
     emit(event, mode === 'target' ? cartesianPayload() : axesPayload());
   };
@@ -297,6 +390,7 @@ const ArmSimulation = ({ interactive = false }) => {
           mode={mode}
           setMode={setMode}
           target={target}
+          updateTarget={updateTarget}
           thetas={displayedThetas}
           selectedJoint={selectedJoint}
           setSelectedJoint={setSelectedJoint}
@@ -304,7 +398,6 @@ const ArmSimulation = ({ interactive = false }) => {
           onPreview={() => preview()}
           onMove={move}
           onReset={reset}
-          isOnline={isOnline}
           error={interactiveError}
         />
       )}

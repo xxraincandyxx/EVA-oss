@@ -62,7 +62,11 @@
   margin: 9px 0;
 }
 
-.arm-target-readout span {
+.arm-target-readout label {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 3px;
   min-width: 0;
   padding: 6px;
   border-radius: 5px;
@@ -70,11 +74,20 @@
   background: var(--grey);
   font-family: monospace;
   font-size: 0.72rem;
-  white-space: nowrap;
 }
 
 .arm-target-readout b {
   color: var(--primary);
+}
+
+.arm-target-readout input {
+  min-width: 0;
+  width: 100%;
+  border: 0;
+  outline: 0;
+  color: var(--dark-grey);
+  background: transparent;
+  font: inherit;
 }
 
 .arm-joint-editor {
