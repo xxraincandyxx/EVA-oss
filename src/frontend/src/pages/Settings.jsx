@@ -72,10 +72,14 @@ const Settings = () => {
         </div>
       </div>
       <div className="bottom-data">
-        <section className="orders settings-container">
+        <div
+          className="orders settings-container"
+          role="region"
+          aria-labelledby="robot-home-pose-title"
+        >
           <div className="header">
             <i className="bx bx-target-lock"></i>
-            <h3>Robot Home Pose</h3>
+            <h3 id="robot-home-pose-title">Robot Home Pose</h3>
           </div>
           <form className="settings-form" onSubmit={save}>
             <fieldset>
@@ -134,7 +138,7 @@ const Settings = () => {
               {saved ? 'Saved' : ''}
             </output>
           </form>
-        </section>
+        </div>
       </div>
     </>
   );
